@@ -1,0 +1,69 @@
+---
+
+version: '3'
+
+services:
+
+  nginx:
+    image: "jwilder/nginx-proxy:alpine"
+    restart: unless-stopped
+    labels:
+      com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
+    ports:
+      - 80:80
+    volumes:
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - ./htpasswd:/etc/nginx/htpasswd
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  postgres:
+    image: "postgres:12"
+    restart: unless-stopped
+    volumes:
+      - dbinit:/docker-entrypoint-initdb.d
+      - dbdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: "ara"
+      POSTGRES_USER: "ara"
+      POSTGRES_PASSWORD: "asdfasdqwertdfasg"
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/bin/pg_isready -U ara"]
+      interval: 10s
+      timeout: 30s
+      retries: 6
+
+  ara:
+    image: "recordsansible/ara-api:latest"
+    restart: unless-stopped
+    # volumes:
+    #   - "./ara-volume:/opt/ara"
+    depends_on:  # "depends_on" + "condition" requires docker-compose >= 1.27.0
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8000"
+    environment:
+      VIRTUAL_HOST: "localhost"  # adjust to your domain
+      VIRTUAL_PORT: "8000"
+      ARA_ALLOWED_HOSTS: "['127.0.0.1', 'localhost', '::1',]"
+      ARA_CORS_ORIGIN_WHITELIST: "['http://localhost']"
+      ARA_DATABASE_ENGINE: "django.db.backends.postgresql"
+      ARA_DATABASE_HOST: "postgres"
+      ARA_DATABASE_NAME: "ara"
+      ARA_DATABASE_USER: "ara"
+      ARA_DATABASE_PASSWORD: "asdfasdqwertdfasg"
+      ARA_READ_LOGIN_REQUIRED: "False"
+      ARA_WRITE_LOGIN_REQUIRED: "False"
+      # ARA_SECRET_KEY: ""
+      # ARA_LOG_LEVEL: "INFO"
+      # ARA_DEBUG: "True"
+
+volumes:
+  dbinit:
+  dbdata:
+  conf:
+  vhost:
+  html:
+  certs:
